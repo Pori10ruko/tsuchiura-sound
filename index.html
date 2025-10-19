@@ -34,92 +34,80 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  // 背景画像（リポジトリ直下）
+  // リポジトリ直下の画像・素材
   const IMG_URL = './tsuchiura_map.jpg';
-
-  // 相対→絶対URL（パス違い対策）
   const BASE = new URL('.', location.href).href;
   const abs  = rel => new URL(rel, BASE).href;
 
-  // 初期スポット（画像の中央に配置）
-  let spot = {
+  // 初期スポット情報（座標は後で中心に置くので仮値）
+  const spot = {
     title: 'テスト：川の音',
-    x: 1000,   // 画像幅1024pxの中央
-    y: 1000,   // 画像高1536pxの中央
     recorder: 'Your Name',
     date: '2025-10-12',
     photo: abs('./sample.jpg'),
-    audioWav: abs('./sample.wav?v=1'),   // WAV
-    audioMp3: abs('./sample.mp3?v=1'),   // 任意（ある場合）
+    audioWav: abs('./sample.wav?v=1'),
+    audioMp3: abs('./sample.mp3?v=1'), // なくてもOK
     description: '霞ヶ浦総合公園ちかくの川沿いで録音。'
   };
 
-  // 以前の座標が残っていると中央に来ないので、初回はクリア
-  localStorage.removeItem('spotXY');
-
-  // 画像サイズを取得して座標系を確定（上下反転補正あり）
+  // 画像の実サイズ取得
   const img = new Image();
   img.onload = () => {
     const W = img.naturalWidth, H = img.naturalHeight;
-    document.getElementById('sz').textContent = `${W}×${H}px`;
+    sz.textContent = `${W}×${H}px`;
 
+    // 画像境界（左上[0,0]〜右下[H,W]）でマップを作る
     const bounds = [[0,0],[H,W]];
     const map = L.map('map',{crs:L.CRS.Simple,minZoom:-4,maxZoom:4,zoomControl:true});
     L.imageOverlay(IMG_URL,bounds).addTo(map);
     map.fitBounds(bounds,{padding:[0,0]});
     map.setMaxBounds(bounds);
 
-    // 画像座標 (0,0)=左上, (W,H)=右下
-    // Leafletの緯度経度へ：Yは反転（上が小、下が大）
-    const toLatLng = (x,y) => map.unproject([x, H - y], map.getMaxZoom());
-    const toPixel  = (ll) => {
-      const p = map.project(ll, map.getMaxZoom());
-      return { x: p.x, y: H - p.y };
-    };
+    // 中心のLatLngをLeafletに計算させる（座標変換の齟齬を回避）
+    const centerLL = L.latLngBounds(bounds).getCenter();
 
-    let marker;
-    const drawMarker = () => {
-      if (marker) map.removeLayer(marker);
-      const icon = L.icon({
-        iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-        iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
-      });
-      const audioHtml = `
-        <audio controls preload="metadata" playsinline>
-          <source src="${spot.audioWav}" type="audio/wav">
-          ${spot.audioMp3 ? `<source src="${spot.audioMp3}" type="audio/mpeg">` : ``}
-          お使いのブラウザは音声再生に対応していません。
-        </audio>
-        <div class="alt">再生できないときは <a href="${spot.audioMp3 || spot.audioWav}" target="_blank" rel="noopener">音源を直接開く</a></div>`;
-      const html = `
-        <div class="popup">
-          ${spot.photo ? `<img src="${spot.photo}" alt="${spot.title}">` : ``}
-          <div class="meta">${spot.title} ｜ REC: ${spot.recorder} ｜ ${spot.date}</div>
-          <div>${spot.description||''}</div>
-          ${audioHtml}
-        </div>`;
-      marker = L.marker(toLatLng(spot.x, spot.y), {icon}).addTo(map).bindPopup(html);
-    };
+    // 画素<->地図の相互変換（HUD表示用）
+    const toPixel  = (ll)=> map.project(ll, map.getMaxZoom()); // 戻りは {x,y}（yは下に大きい）
+    const toLatLng = (x,y)=> map.unproject([x,y], map.getMaxZoom());
 
-    // 初回：中央に配置して開く
-    drawMarker();
-    map.setView(toLatLng(spot.x, spot.y), 0, {animate:true});
+    // ピン作成（中心に配置）
+    const icon = L.icon({
+      iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
+    });
+    const audioHtml = `
+      <audio controls preload="metadata" playsinline>
+        <source src="${spot.audioWav}" type="audio/wav">
+        ${spot.audioMp3 ? `<source src="${spot.audioMp3}" type="audio/mpeg">` : ``}
+        お使いのブラウザは音声再生に対応していません。
+      </audio>
+      <div class="alt">再生できないときは <a href="${spot.audioMp3 || spot.audioWav}" target="_blank" rel="noopener">音源を直接開く</a></div>`;
+    const html = `
+      <div class="popup">
+        ${spot.photo?`<img src="${spot.photo}" alt="${spot.title}">`:``}
+        <div class="meta">${spot.title} ｜ REC: ${spot.recorder} ｜ ${spot.date}</div>
+        <div>${spot.description||''}</div>
+        ${audioHtml}
+      </div>`;
+
+    let marker = L.marker(centerLL,{icon}).addTo(map).bindPopup(html);
+
+    // 初期表示で中央＆ポップアップ
+    map.setView(centerLL, 0, {animate:true});
     marker.openPopup();
 
-    // クリックした場所にスポットを更新（HUDにも反映）
-    map.on('click', e => {
+    // クリックでその場所にピンを移動（HUDに画像ピクセルを表示）
+    map.on('click', e=>{
       const p = toPixel(e.latlng);
-      spot.x = Math.round(p.x);
-      spot.y = Math.round(p.y);
-      document.getElementById('px').textContent = spot.x;
-      document.getElementById('py').textContent = spot.y;
-      drawMarker();
-      localStorage.setItem('spotXY', JSON.stringify({x:spot.x,y:spot.y}));
+      px.textContent = Math.round(p.x);
+      py.textContent = Math.round(p.y);
+      if (marker) map.removeLayer(marker);
+      marker = L.marker(e.latlng,{icon}).addTo(map).bindPopup(html).openPopup();
     });
 
-    // 右下ボタンで現在スポットを開く
-    document.getElementById('openSpotBtn').onclick = () => {
+    // ボタンで現在のピンを開く
+    document.getElementById('openSpotBtn').onclick = ()=>{
       if (!marker) return;
       map.setView(marker.getLatLng(), map.getZoom(), {animate:true});
       marker.openPopup();
