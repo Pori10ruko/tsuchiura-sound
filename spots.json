@@ -1,0 +1,12 @@
+[
+  {
+    "title": "サンプル：川の音",
+    "x": 680,
+    "y": 1210,
+    "recorder": "Your Name",
+    "date": "2025-10-12",
+    "photo": "sample.jpg",
+    "audio": ["sample.mp3", "sample.wav"],
+    "desc": "霞ヶ浦総合公園ちかくの川沿いで録音。"
+  }
+]
