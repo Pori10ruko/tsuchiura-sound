@@ -9,16 +9,10 @@
   html,body{height:100%;margin:0;background:#000;color:#e8e0c9;}
   #map{width:100vw;height:100vh;}
   .leaflet-container{background:#000;}
-  .hud{
-    position:fixed;right:12px;top:12px;z-index:500;
-    background:#111a;color:#ffd86b;border:1px solid #ffd86b55;
-    font:12px/1.2 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);
-  }
-  .fab{
-    position:fixed;right:16px;bottom:16px;z-index:600;
-    border:0;border-radius:999px;padding:12px 16px;cursor:pointer;
-    background:#f0d27a;color:#111;font-weight:700;box-shadow:0 6px 20px #0008;
-  }
+  .hud{position:fixed;right:12px;top:12px;z-index:500;background:#111a;color:#ffd86b;
+       border:1px solid #ffd86b55;font:12px/1.2 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);}
+  .fab{position:fixed;right:16px;bottom:16px;z-index:600;border:0;border-radius:999px;padding:12px 16px;cursor:pointer;
+       background:#f0d27a;color:#111;font-weight:700;box-shadow:0 6px 20px #0008;}
   .popup{width:min(360px,86vw);font:14px/1.5 system-ui,"Noto Sans JP",sans-serif;color:#111;}
   .popup img{width:100%;height:auto;border-radius:10px;margin-bottom:8px;}
   .popup .meta{font-size:12px;color:#555;margin:6px 0;}
@@ -30,32 +24,38 @@
 <body>
 <div id="map"></div>
 <div class="hud">img: <span id="sz">—</span>｜x:<span id="px">—</span> / y:<span id="py">—</span></div>
-<button class="fab" id="openSpotBtn">▶︎ 再生</button>
+<button class="fab" id="openSpotBtn">▶︎ テスト再生</button>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   // 背景画像（リポジトリ直下）
   const IMG_URL = './tsuchiura_map.jpg';
 
-  // 素材（リポジトリ直下。必要に応じてパス変更OK）
+  // 素材はリポジトリ直下に配置済み（sample.jpg / sample.wav）
+  // 絶対URLを生成してパス違いを防ぐ
   const BASE = new URL('.', location.href).href;
   const abs  = rel => new URL(rel, BASE).href;
 
-  // --- 固定ピン座標（画像ピクセル）。nullなら「中央」に固定 ---
-  // 例：総合公園の近くにしたい時は、HUDで見た x/y をここへ
-  const SPOT_X = null;  // 例: 580
-  const SPOT_Y = null;  // 例: 1100
-
-  // ポップアップ内容
-  const SPOT_META = {
-    title: '川の音',
+  // スポット（初期値は中央付近に仮置き。クリックで上書き）
+  let spot = {
+    title: 'テスト：川の音',
+    x: 512,  // 初期値（画像中央）→ クリックで更新
+    y: 768,
     recorder: 'Your Name',
     date: '2025-10-12',
     photo: abs('./sample.jpg'),
-    audioWav: abs('./sample.wav?v=1'),
-    audioMp3: abs('./sample.mp3?v=1'), // ない場合はそのまま空でもOK
+    audioWav: abs('./sample.wav?v=1'),  // キャッシュ回避クエリ付き
+    audioMp3: abs('./sample.mp3?v=1'),  // ある場合のみ有効
     description: '霞ヶ浦総合公園ちかくの川沿いで録音。'
   };
+
+  // 以前の座標があれば復元（localStorage）
+  try {
+    const saved = JSON.parse(localStorage.getItem('spotXY'));
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+      spot.x = saved.x; spot.y = saved.y;
+    }
+  } catch(_) {}
 
   const img = new Image();
   img.onload = () => {
@@ -68,56 +68,59 @@
     map.fitBounds(bounds,{padding:[0,0]});
     map.setMaxBounds(bounds);
 
-    // ユーティリティ
-    const toPixel  = (ll)=> map.project(ll, map.getMaxZoom());     // {x,y}（yは下ほど大）
-    const toLatLng = (x,y)=> map.unproject([x,y], map.getMaxZoom());
+    const toLatLng=(x,y)=>map.unproject([x,y],map.getMaxZoom());
+    const toPixel =(ll)=>map.project(ll,map.getMaxZoom());
+    const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
 
-    // === 固定ピンの座標を決定（中央 or 明示値） ===
-    const cx = Number.isFinite(SPOT_X) ? SPOT_X : Math.floor(W/2);
-    const cy = Number.isFinite(SPOT_Y) ? SPOT_Y : Math.floor(H/2);
-    const fixedLL = toLatLng(cx, cy);
+    let marker = null;
+    const drawMarker = () => {
+      const cx = clamp(spot.x,0,W), cy = clamp(spot.y,0,H);
+      const ll = toLatLng(cx,cy);
+      if (marker) map.removeLayer(marker);
+      const icon=L.icon({
+        iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+        shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        iconSize:[25,41],iconAnchor:[12,41],popupAnchor:[1,-34]
+      });
+      const audioHtml = `
+        <audio controls preload="metadata" playsinline>
+          <source src="${spot.audioWav}" type="audio/wav">
+          ${spot.audioMp3 ? `<source src="${spot.audioMp3}" type="audio/mpeg">` : ``}
+          お使いのブラウザは音声再生に対応していません。
+        </audio>
+        <div class="alt">再生できないときは <a href="${spot.audioMp3 || spot.audioWav}" target="_blank" rel="noopener">音源を直接開く</a></div>`;
+      const html = `
+        <div class="popup">
+          ${spot.photo?`<img src="${spot.photo}" alt="${spot.title}">`:``}
+          <div class="meta">${spot.title} ｜ REC: ${spot.recorder} ｜ ${spot.date}</div>
+          <div>${spot.description||''}</div>
+          ${audioHtml}
+        </div>`;
+      marker = L.marker(ll,{icon}).addTo(map).bindPopup(html);
+    };
 
-    // マーカー＆ポップアップ（固定）
-    const icon = L.icon({
-      iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-      shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
-    });
-    const audioHtml = `
-      <audio controls preload="metadata" playsinline>
-        <source src="${SPOT_META.audioWav}" type="audio/wav">
-        ${SPOT_META.audioMp3 ? `<source src="${SPOT_META.audioMp3}" type="audio/mpeg">` : ``}
-        お使いのブラウザは音声再生に対応していません。
-      </audio>
-      <div class="alt">再生できないときは <a href="${SPOT_META.audioMp3 || SPOT_META.audioWav}" target="_blank" rel="noopener">音源を直接開く</a></div>`;
-    const html = `
-      <div class="popup">
-        ${SPOT_META.photo?`<img src="${SPOT_META.photo}" alt="${SPOT_META.title}">`:``}
-        <div class="meta">${SPOT_META.title} ｜ REC: ${SPOT_META.recorder} ｜ ${SPOT_META.date}</div>
-        <div>${SPOT_META.description||''}</div>
-        ${audioHtml}
-      </div>`;
+    // 初回描画
+    drawMarker();
 
-    const marker = L.marker(fixedLL,{icon}).addTo(map).bindPopup(html);
-
-    // 初期表示：ピン位置へ移動してポップアップ
-    map.setView(fixedLL, 0, {animate:true});
-    marker.openPopup();
-
-    // クリックしても位置は変えない（HUDに座標だけ表示）
+    // クリックした場所を新しい座標にする
     map.on('click', e=>{
       const p = toPixel(e.latlng);
-      px.textContent = Math.round(p.x);
-      py.textContent = Math.round(p.y);
+      spot.x = Math.round(p.x);
+      spot.y = Math.round(p.y);
+      px.textContent = spot.x;
+      py.textContent = spot.y;
+      localStorage.setItem('spotXY', JSON.stringify({x:spot.x, y:spot.y}));
+      drawMarker();
     });
 
-    // ボタンでポップアップを再表示
+    // ボタンでポップアップを開く
     openSpotBtn.onclick = ()=>{
-      map.setView(fixedLL, map.getZoom(), {animate:true});
+      if (!marker) return;
+      map.setView(marker.getLatLng(), map.getZoom(), {animate:true});
       marker.openPopup();
     };
   };
-  img.onerror = () => alert('画像を読み込めませんでした：'+IMG_URL);
+  img.onerror = ()=> alert('画像を読み込めませんでした：'+IMG_URL);
   img.src = IMG_URL;
 </script>
 </body>
