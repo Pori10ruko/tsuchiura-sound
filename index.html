@@ -1,18 +1,17 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Tsuchiura Sound Archive</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   html,body{height:100%;margin:0;background:#0c0f13;color:#e8e0c9;}
   #map{height:100vh;}
   .brand{position:fixed;left:12px;bottom:12px;padding:6px 10px;background:#111a;
     color:#f0d27a;border:1px solid #f0d27a55;border-radius:999px;font-size:12px;}
   .hud{position:fixed;right:12px;top:12px;background:#111a;color:#f0d27a;
-    border:1px solid #f0d27a55;font:12px/1.2 system-ui;padding:8px 10px;
-    border-radius:10px;}
+    border:1px solid #f0d27a55;font:12px/1.2 system-ui;padding:8px 10px;border-radius:10px;}
 </style>
 </head>
 <body>
@@ -22,25 +21,58 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  const IMG_URL='tsuchiura_map.jpg'; // ←アップした画像名
-  const IMG_WIDTH=2000;  // ←画像の横幅(px)
-  const IMG_HEIGHT=1200; // ←画像の高さ(px)
+  // 画像はリポジトリ直下
+  const IMG_URL = './tsuchiura_map.jpg';
 
-  const bounds=[[0,0],[IMG_HEIGHT,IMG_WIDTH]];
-  const map=L.map('map',{crs:L.CRS.Simple,minZoom:-2,maxZoom:2});
-  L.imageOverlay(IMG_URL,bounds).addTo(map);
-  map.fitBounds(bounds);
+  // 画像を読み込んで naturalWidth/Height を使う（サイズずれ防止）
+  const img = new Image();
+  img.onload = () => {
+    const IMG_WIDTH  = img.naturalWidth;
+    const IMG_HEIGHT = img.naturalHeight;
 
-  const toLatLng=(x,y)=>map.unproject([x,y],map.getMaxZoom());
-  const toPixel=(latlng)=>map.project(latlng,map.getMaxZoom());
+    const bounds = [[0,0],[IMG_HEIGHT,IMG_WIDTH]];
+    const map = L.map('map',{ crs:L.CRS.Simple, minZoom:-2, maxZoom:2, zoomControl:true });
+    L.imageOverlay(IMG_URL, bounds).addTo(map);
+    map.fitBounds(bounds);
+    map.setMaxBounds(bounds);
 
-  map.on('click',e=>{
-    const pt=toPixel(e.latlng);
-    document.getElementById('px').textContent=Math.round(pt.x);
-    document.getElementById('py').textContent=Math.round(pt.y);
-    L.circleMarker(e.latlng,{radius:4,color:'#f0d27a',fill:true,fillOpacity:.6}).addTo(map)
-      .bindTooltip(`x:${Math.round(pt.x)} / y:${Math.round(pt.y)}`,{permanent:false}).openTooltip();
-  });
+    const toLatLng = (x,y)=> map.unproject([x,y], map.getMaxZoom());
+    const toPixel  = (ll)=> map.project(ll, map.getMaxZoom());
+
+    map.on('click', e=>{
+      const pt = toPixel(e.latlng);
+      px.textContent = Math.round(pt.x);
+      py.textContent = Math.round(pt.y);
+      L.circleMarker(e.latlng,{radius:4,color:'#f0d27a',weight:1,fill:true,fillOpacity:.6})
+        .addTo(map).bindTooltip(`x:${Math.round(pt.x)} / y:${Math.round(pt.y)}`).openTooltip();
+    });
+
+    // ここにスポットを追加していけます
+    const SPOTS = [
+      // 例:
+      // { title:'噴水', x:980, y:560, recorder:'Aoi', date:'2025-10-12',
+      //   photo:'assets/img/funsui.jpg', audio:'assets/audio/funsui.mp3', description:'公園中央の噴水' }
+    ];
+    const icon = L.icon({
+      iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
+    });
+    SPOTS.forEach(s=>{
+      const ll = toLatLng(s.x, s.y);
+      const html = `<div class="popup">
+        ${s.photo?`<img src="${s.photo}" alt="${s.title}" style="width:100%;border-radius:10px;margin-bottom:8px">`:``}
+        <div style="font-size:12px;color:#555;margin:6px 0">${s.title} ｜ REC: ${s.recorder} ｜ ${s.date}</div>
+        <div>${s.description||''}</div>
+        ${s.audio?`<audio controls preload="metadata" src="${s.audio}" style="width:100%;margin-top:6px"></audio>`:``}
+      </div>`;
+      L.marker(ll,{icon}).addTo(map).bindPopup(html);
+    });
+  };
+  img.onerror = () => {
+    document.body.insertAdjacentHTML('beforeend','<p style="padding:16px;color:#f88">画像が読み込めませんでした：'+IMG_URL+'</p>');
+  };
+  img.src = IMG_URL;
 </script>
 </body>
 </html>
