@@ -10,16 +10,14 @@
   #map{width:100vw;height:100vh;}
   .leaflet-container{background:#000;}
   .hud{
-    position:fixed;right:12px;top:12px;z-index:500;
+    position:fixed;right:12px;top:12px;z-index:600;
     background:#111a;color:#ffd86b;border:1px solid #ffd86b55;
-    font:12px/1.2 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);
+    font:12px/1.4 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);
   }
-  .fab{
-    position:fixed;right:16px;bottom:16px;z-index:600;
-    border:0;border-radius:999px;padding:12px 16px;cursor:pointer;
-    background:#f0d27a;color:#111;font-weight:700;box-shadow:0 6px 20px #0008;
-  }
-  .popup{width:min(360px,86vw);font:14px/1.5 system-ui,"Noto Sans JP",sans-serif;color:#111;}
+  .hud .row{margin-top:6px}
+  .hud button{margin-top:6px;border:1px solid #ffd86b55;border-radius:8px;
+    background:#222;color:#ffd86b;padding:6px 10px;cursor:pointer}
+  .popup{width:min(360px,86vw);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif;color:#111;}
   .popup img{width:100%;height:auto;border-radius:10px;margin-bottom:8px;}
   .popup .meta{font-size:12px;color:#555;margin:6px 0;}
   .popup audio{width:100%;margin-top:6px;}
@@ -29,95 +27,117 @@
 </head>
 <body>
 <div id="map"></div>
-<div class="hud">img: <span id="sz">—</span>｜x:<span id="px">—</span> / y:<span id="py">—</span></div>
-<button class="fab" id="openSpotBtn">▶︎ 再生</button>
+
+<div class="hud">
+  <div>img: <span id="sz">—</span></div>
+  <div class="row">x:<span id="px">—</span> / y:<span id="py">—</span></div>
+  <button id="copyBtn">📋 JSONコピー（最後にクリックした座標）</button>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  // 画像・素材（リポジトリ直下）
+(async () => {
   const IMG_URL = './tsuchiura_map.jpg';
+  const DATA_URL = './spots.json'; // ← ここからピンを読む
   const BASE = new URL('.', location.href).href;
   const abs  = rel => new URL(rel, BASE).href;
+  const Z0 = 0; // 「画像ピクセル」単位にそろえるため zoom=0 を採用
 
-  // ★固定ピンの座標（画像ピクセル）。公園ラベル付近の仮値
-  const SPOT_X = 9660;   // 横（0〜画像幅）
-  const SPOT_Y = 5020;  // 縦（0〜画像高）←上が小さく下が大きい
+  // 画像サイズ取得
+  const img = await new Promise((resolve, reject)=>{
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = IMG_URL;
+  });
+  const W = img.naturalWidth, H = img.naturalHeight; // 例: 1024×1536
+  document.getElementById('sz').textContent = `${W}×${H}px`;
 
-  const SPOT_META = {
-    title: '川の音',
-    recorder: 'Your Name',
-    date: '2025-10-12',
-    photo: abs('./sample.jpg'),
-    audioWav: abs('./sample.wav?v=1'),
-    audioMp3: abs('./sample.mp3?v=1'), // あれば
-    description: '霞ヶ浦総合公園ちかくの川沿いで録音。'
+  // マップ初期化（CRS.Simple）
+  const bounds = [[0,0],[H,W]];
+  const map = L.map('map',{ crs:L.CRS.Simple, minZoom:-4, maxZoom:4, zoomControl:true });
+  L.imageOverlay(IMG_URL, bounds).addTo(map);
+  map.fitBounds(bounds, { padding:[0,0] });
+  map.setMaxBounds(bounds);
+
+  // 変換（Yは上下反転に注意）
+  const toLatLng = (x,y) => map.unproject([x, H - y], Z0);
+  const toPixel  = (ll)    => {
+    const p = map.project(ll, Z0);
+    return { x: Math.round(p.x), y: Math.round(H - p.y) };
   };
 
-  // 画像読み込み後に座標系を確定
-  const img = new Image();
-  img.onload = () => {
-    const W = img.naturalWidth, H = img.naturalHeight; // 例: 1024×1536
-    sz.textContent = `${W}×${H}px`;
+  // spots.json を取得
+  let spots = [];
+  try {
+    const res = await fetch(DATA_URL, { cache:'no-store' });
+    spots = await res.json();
+  } catch(e) {
+    console.warn('spots.json を読み込めませんでした。空配列で続行します。', e);
+    spots = [];
+  }
 
-    // 画像の左上(0,0)〜右下(H,W)で地図を作成（CRS.Simple）
-    const bounds = [[0,0],[H,W]];
-    const map = L.map('map',{ crs:L.CRS.Simple, minZoom:-4, maxZoom:4, zoomControl:true });
-    L.imageOverlay(IMG_URL, bounds).addTo(map);
-    map.fitBounds(bounds, { padding:[0,0] });
-    map.setMaxBounds(bounds);
+  // ピン描画
+  const icon = L.icon({
+    iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+    shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
+  });
 
-    // --- 重要：上下反転補正つきの変換関数 ---
-    // 画像ピクセル(x,y) → Leaflet LatLng
-    const toLatLng = (x,y) => map.unproject([x, H - y], map.getMaxZoom());
-    // Leaflet LatLng → 画像ピクセル(x,y)
-    const toPixel  = (ll) => {
-      const p = map.project(ll, map.getMaxZoom());
-      return { x: p.x, y: H - p.y }; // ← 反転
-    };
+  spots.forEach(s=>{
+    // audio は配列で [mp3,wav] などの順にフォールバック
+    const audioSources = (s.audio || []).map(src=>{
+      const type = src.endsWith('.mp3') ? 'audio/mpeg'
+                 : src.endsWith('.wav') ? 'audio/wav'
+                 : '';
+      return type ? `<source src="${src}" type="${type}">` : '';
+    }).join('');
 
-    // 固定ピン作成
-    const icon = L.icon({
-      iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-      shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
-    });
-    const audioHtml = `
-      <audio controls preload="metadata" playsinline>
-        <source src="${SPOT_META.audioWav}" type="audio/wav">
-        ${SPOT_META.audioMp3 ? `<source src="${SPOT_META.audioMp3}" type="audio/mpeg">` : ``}
-        お使いのブラウザは音声再生に対応していません。
-      </audio>
-      <div class="alt">再生できないときは <a href="${SPOT_META.audioMp3 || SPOT_META.audioWav}" target="_blank" rel="noopener">音源を直接開く</a></div>`;
     const html = `
       <div class="popup">
-        ${SPOT_META.photo?`<img src="${SPOT_META.photo}" alt="${SPOT_META.title}">`:``}
-        <div class="meta">${SPOT_META.title} ｜ REC: ${SPOT_META.recorder} ｜ ${SPOT_META.date}</div>
-        <div>${SPOT_META.description||''}</div>
-        ${audioHtml}
+        ${s.photo ? `<img src="${s.photo}" alt="${s.title||''}">` : ``}
+        <div class="meta">${s.title||''} ${s.recorder?`｜ REC: ${s.recorder}`:''} ${s.date?`｜ ${s.date}`:''}</div>
+        <div>${s.desc||''}</div>
+        ${audioSources ? `
+          <audio controls preload="metadata" playsinline>${audioSources}
+            お使いのブラウザは音声再生に対応していません。
+          </audio>
+          <div class="alt">再生できないときは <a href="${s.audio?.[0]||s.audio?.[1]||'#'}" target="_blank" rel="noopener">音源を直接開く</a></div>
+        ` : ``}
       </div>`;
 
-    const fixedLL = toLatLng(SPOT_X, SPOT_Y);
-    const marker  = L.marker(fixedLL, {icon}).addTo(map).bindPopup(html);
+    L.marker(toLatLng(s.x, s.y),{icon}).addTo(map).bindPopup(html);
+  });
 
-    // 初期表示：ピンへ移動＆ポップアップ
-    map.setView(fixedLL, 0, {animate:true});
-    marker.openPopup();
+  // クリックで座標表示＋JSONテンプレをクリップボードにコピー
+  let lastXY = {x:null, y:null};
+  map.on('click', e=>{
+    lastXY = toPixel(e.latlng);
+    document.getElementById('px').textContent = lastXY.x;
+    document.getElementById('py').textContent = lastXY.y;
+  });
 
-    // クリックしてもピンは動かさない。HUDに正しい x/y だけ出す
-    map.on('click', e => {
-      const p = toPixel(e.latlng);
-      document.getElementById('px').textContent = Math.round(p.x);
-      document.getElementById('py').textContent = Math.round(p.y);
-    });
-
-    // 右下ボタン：ピン位置に戻ってポップアップ
-    document.getElementById('openSpotBtn').onclick = () => {
-      map.setView(fixedLL, map.getZoom(), {animate:true});
-      marker.openPopup();
+  document.getElementById('copyBtn').onclick = async ()=>{
+    if(lastXY.x==null){ alert('まず地図をクリックして座標を取得してください。'); return; }
+    const template = {
+      "title": "タイトルを入力",
+      "x": lastXY.x,
+      "y": lastXY.y,
+      "recorder": "お名前",
+      "date": "2025-10-12",
+      "photo": "img/your_photo.jpg",
+      "audio": ["audio/your_audio.mp3", "audio/your_audio.wav"],
+      "desc": "メモ"
     };
+    try{
+      await navigator.clipboard.writeText(JSON.stringify(template, null, 2));
+      alert('JSONテンプレをコピーしました。spots.json に貼り付けてください。');
+    }catch(_){
+      // クリップボード不可の環境向けにダイアログ表示
+      prompt('下の内容をコピーして spots.json に追記してください：', JSON.stringify(template, null, 2));
+    }
   };
-  img.onerror = () => alert('画像を読み込めませんでした：'+IMG_URL);
-  img.src = IMG_URL;
+})();
 </script>
 </body>
 </html>
