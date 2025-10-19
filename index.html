@@ -6,25 +6,17 @@
 <title>Tsuchiura Sound Archive</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  html,body { height:100%; margin:0; background:#000; color:#e8e0c9; }
-  #map { width:100vw; height:100vh; }
-  .leaflet-container { background:#000; }
-  .hud{
-    position:fixed; right:12px; top:12px; z-index:500;
-    background:#111a; color:#ffd86b; border:1px solid #ffd86b55;
-    font:12px/1.2 system-ui; padding:8px 10px; border-radius:10px; backdrop-filter: blur(4px);
-  }
-  .fab{
-    position:fixed; right:16px; bottom:16px; z-index:600;
-    border:0; border-radius:999px; padding:12px 16px; cursor:pointer;
-    background:#f0d27a; color:#111; font-weight:700; box-shadow:0 6px 20px #0008;
-  }
-  .popup{ width:min(360px,86vw); font:14px/1.5 system-ui,"Noto Sans JP",sans-serif; color:#111; }
-  .popup img{ width:100%; height:auto; border-radius:10px; margin-bottom:8px; }
-  .popup .meta{ font-size:12px; color:#555; margin:6px 0; }
-  .popup audio{ width:100%; margin-top:6px; }
-  .popup .alt { margin-top:8px; font-size:12px; }
-  .popup .alt a{ color:#0a58ff; }
+  html,body{height:100%;margin:0;background:#000;color:#e8e0c9;}
+  #map{width:100vw;height:100vh;}
+  .leaflet-container{background:#000;}
+  .hud{position:fixed;right:12px;top:12px;z-index:500;background:#111a;color:#ffd86b;border:1px solid #ffd86b55;font:12px/1.2 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);}
+  .fab{position:fixed;right:16px;bottom:16px;z-index:600;border:0;border-radius:999px;padding:12px 16px;cursor:pointer;background:#f0d27a;color:#111;font-weight:700;box-shadow:0 6px 20px #0008;}
+  .popup{width:min(360px,86vw);font:14px/1.5 system-ui,"Noto Sans JP",sans-serif;color:#111;}
+  .popup img{width:100%;height:auto;border-radius:10px;margin-bottom:8px;}
+  .popup .meta{font-size:12px;color:#555;margin:6px 0;}
+  .popup audio{width:100%;margin-top:6px;}
+  .popup .alt{margin-top:8px;font-size:12px;}
+  .popup .alt a{color:#0a58ff;}
 </style>
 </head>
 <body>
@@ -37,20 +29,24 @@
   // 背景画像（リポジトリ直下）
   const IMG_URL = './tsuchiura_map.jpg';
 
-  // スポット：座標は x=9728 / y=-4160 をベースに「右上」へオフセット
+  // ファイルの絶対URLを安全に作る（相対パスの食い違いを防止）
+  const BASE = new URL('.', location.href).href; // 例: https://pori10ruko.github.io/tsuchiura-sound/
+  const urlAbs = (rel) => new URL(rel, BASE).href;
+
+  // ★総合公園の近くでクリックして得た x/y をここに入れてください
   const SPOTS = [
     {
       title: 'テスト：川の音',
-      x: 9728,
-      y: -4160,
-      dx: 420,   // → 右へ
-      dy: -260,  // → 上へ
+      x: X_HERE,   // ← 例: 5120
+      y: Y_HERE,   // ← 例: 6400
+      dx: 0,       // 微調整：右へ + / 左へ -
+      dy: 0,       // 微調整：上へ - / 下へ +
       recorder: 'Your Name',
       date: '2025-10-12',
-      photo: './sample.jpg',          // 直下にある写真
-      audioWav: './sample.wav',       // 直下にあるWAV
-      audioMp3: './sample.mp3',       // ある場合だけ置いてOK（自動フォールバック）
-      description: '湖畔の川沿いで録音。'
+      photo: urlAbs('./sample.jpg'),         // 直下の sample.jpg
+      audioWav: urlAbs('./sample.wav?v=1'),  // 直下の sample.wav（キャッシュ回避クエリ付き）
+      audioMp3: urlAbs('./sample.mp3?v=1'),  // ある場合のみ配置
+      description: '霞ヶ浦総合公園ちかくの川沿いで録音。'
     }
   ];
 
@@ -61,44 +57,43 @@
     sz.textContent = `${W}×${H}px`;
 
     const bounds = [[0,0],[H,W]];
-    const map = L.map('map', { crs:L.CRS.Simple, minZoom:-4, maxZoom:4, zoomControl:true });
-    L.imageOverlay(IMG_URL, bounds).addTo(map);
-    map.fitBounds(bounds, { padding:[0,0] });
+    const map = L.map('map',{crs:L.CRS.Simple,minZoom:-4,maxZoom:4,zoomControl:true});
+    L.imageOverlay(IMG_URL,bounds).addTo(map);
+    map.fitBounds(bounds,{padding:[0,0]});
     map.setMaxBounds(bounds);
 
-    const toLatLng = (x,y)=> map.unproject([x,y], map.getMaxZoom());
-    const toPixel  = (ll)=> map.project(ll, map.getMaxZoom());
-    const clamp = (v,min,max)=> Math.min(max, Math.max(min, v));
+    const toLatLng=(x,y)=>map.unproject([x,y],map.getMaxZoom());
+    const toPixel =(ll)=>map.project(ll,map.getMaxZoom());
+    const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
 
-    map.on('click', e=>{
-      const p = toPixel(e.latlng);
-      px.textContent = Math.round(p.x);
-      py.textContent = Math.round(p.y);
+    map.on('click',e=>{
+      const p=toPixel(e.latlng);
+      px.textContent=Math.round(p.x);
+      py.textContent=Math.round(p.y);
     });
 
-    const icon = L.icon({
+    const icon=L.icon({
       iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
       shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
+      iconSize:[25,41],iconAnchor:[12,41],popupAnchor:[1,-34]
     });
 
-    // マーカー作成
     const markers = SPOTS.map(s=>{
       const cx = clamp(s.x + (s.dx||0), 0, W);
       const cy = clamp(s.y + (s.dy||0), 0, H);
       const ll = toLatLng(cx, cy);
 
       const audioHtml = `
-        <audio controls preload="metadata" playsinline>
+        <audio controls preload="metadata" playsinline crossorigin="anonymous">
           ${s.audioWav ? `<source src="${s.audioWav}" type="audio/wav">` : ``}
           ${s.audioMp3 ? `<source src="${s.audioMp3}" type="audio/mpeg">` : ``}
           お使いのブラウザは音声再生に対応していません。
         </audio>
-        <div class="alt">（再生できない場合 → <a href="${s.audioMp3 || s.audioWav}" target="_blank" rel="noopener">音源を直接開く</a>）</div>`;
+        <div class="alt">再生できないときは <a href="${s.audioMp3 || s.audioWav}" target="_blank" rel="noopener">音源を直接開く</a></div>`;
 
       const html = `
         <div class="popup">
-          ${s.photo ? `<img src="${s.photo}" alt="${s.title}">` : ``}
+          ${s.photo?`<img src="${s.photo}" alt="${s.title}">`:``}
           <div class="meta">${s.title} ｜ REC: ${s.recorder} ｜ ${s.date}</div>
           <div>${s.description||''}</div>
           ${audioHtml}
@@ -106,20 +101,15 @@
       return L.marker(ll,{icon}).addTo(map).bindPopup(html);
     });
 
-    // 右下ボタン：最初のスポットへ移動してポップアップを開く
-    openSpotBtn.onclick = () => {
-      if (!markers.length) return;
-      const m = markers[0];
-      map.setView(m.getLatLng(), map.getZoom(), { animate:true });
+    openSpotBtn.onclick=()=>{
+      if(!markers.length) return;
+      const m=markers[0];
+      map.setView(m.getLatLng(), map.getZoom(), {animate:true});
       m.openPopup();
-      setTimeout(()=>{
-        const aud = document.querySelector('.leaflet-popup audio');
-        if (aud) aud.scrollIntoView({behavior:'smooth', block:'center'});
-      }, 100);
     };
   };
-  img.onerror = () => alert('画像を読み込めませんでした：'+IMG_URL);
-  img.src = IMG_URL;
+  img.onerror=()=>alert('画像を読み込めませんでした：'+IMG_URL);
+  img.src=IMG_URL;
 </script>
 </body>
 </html>
