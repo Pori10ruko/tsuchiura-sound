@@ -9,134 +9,173 @@
   html,body{height:100%;margin:0;background:#000;color:#e8e0c9;}
   #map{width:100vw;height:100vh;}
   .leaflet-container{background:#000;}
+  
+  /* 右上の座標表示＆コピーボタン */
   .hud{
     position:fixed;right:12px;top:12px;z-index:600;
     background:#111a;color:#ffd86b;border:1px solid #ffd86b55;
     font:12px/1.4 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);
+    max-width: 200px;
   }
-  .hud .row{margin-top:6px}
-  .hud button{margin-top:6px;border:1px solid #ffd86b55;border-radius:8px;
-    background:#222;color:#ffd86b;padding:6px 10px;cursor:pointer}
-  .popup{width:min(360px,86vw);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif;color:#111;}
-  .popup img{width:100%;height:auto;border-radius:10px;margin-bottom:8px;}
-  .popup .meta{font-size:12px;color:#555;margin:6px 0;}
-  .popup audio{width:100%;margin-top:6px;}
-  .popup .alt{margin-top:8px;font-size:12px;}
-  .popup .alt a{color:#0a58ff;}
+  .hud button{
+    margin-top:6px;width:100%;border:1px solid #ffd86b55;border-radius:4px;
+    background:#333;color:#ffd86b;padding:4px;cursor:pointer;
+  }
+
+  /* ポップアップのデザイン */
+  .popup{width:min(320px,80vw);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif;color:#111;}
+  .popup img{width:100%;height:auto;border-radius:6px;margin-bottom:8px;object-fit:cover;}
+  .popup .meta{font-size:12px;color:#555;margin-bottom:4px;font-weight:bold;}
+  .popup .desc{font-size:13px;margin-bottom:8px;}
+  
+  /* プレイヤー部分 */
+  .player-box {background:#f0f0f0; padding:8px; border-radius:6px;}
+  .player-box audio {width:100%; margin-bottom:8px;}
+  .track-list {max-height:150px; overflow-y:auto; border-top:1px solid #ccc;}
+  .track-btn {
+    display:block; width:100%; text-align:left; padding:6px; border:none; border-bottom:1px solid #ddd;
+    background:#fff; cursor:pointer; font-size:13px;
+  }
+  .track-btn:hover {background:#eef;}
+  .track-btn.playing {background:#ffd86b; color:#000; font-weight:bold;}
 </style>
 </head>
 <body>
+
 <div id="map"></div>
 
 <div class="hud">
-  <div>img: <span id="sz">—</span></div>
-  <div class="row">x:<span id="px">—</span> / y:<span id="py">—</span></div>
-  <button id="copyBtn">📋 JSONコピー（最後にクリックした座標）</button>
+  <div>img: <span id="sz">loading...</span></div>
+  <div>x:<span id="px">—</span> / y:<span id="py">—</span></div>
+  <button id="copyBtn">📋 ピン追加用コードをコピー</button>
+  <div style="font-size:10px;color:#ccc;margin-top:4px;">※地図をクリックしてから押す</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (async () => {
-  const IMG_URL = './tsuchiura_map.jpg';
-  const DATA_URL = './spots.json'; // ← ここからピンを読む
+  // ■ 設定：画像とデータ
+  const IMG_URL  = './tsuchiura_map.jpg'; // 地図画像
+  const DATA_URL = './spots.json';        // データファイル
+  
+  // URL補正用
   const BASE = new URL('.', location.href).href;
-  const abs  = rel => new URL(rel, BASE).href;
-  const Z0 = 0; // 「画像ピクセル」単位にそろえるため zoom=0 を採用
+  const abs = rel => new URL(rel, BASE).href;
 
-  // 画像サイズ取得
-  const img = await new Promise((resolve, reject)=>{
+  // 画像サイズ取得とマップ初期化
+  const img = await new Promise((res, rej)=>{
     const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = reject;
+    i.onload = () => res(i);
+    i.onerror = rej;
     i.src = IMG_URL;
   });
-  const W = img.naturalWidth, H = img.naturalHeight; // 例: 1024×1536
+  const W = img.naturalWidth, H = img.naturalHeight;
   document.getElementById('sz').textContent = `${W}×${H}px`;
 
-  // マップ初期化（CRS.Simple）
+  // 座標系設定（左上原点、Y軸反転対応）
   const bounds = [[0,0],[H,W]];
   const map = L.map('map',{ crs:L.CRS.Simple, minZoom:-4, maxZoom:4, zoomControl:true });
   L.imageOverlay(IMG_URL, bounds).addTo(map);
   map.fitBounds(bounds, { padding:[0,0] });
   map.setMaxBounds(bounds);
 
-  // 変換（Yは上下反転に注意）
-  const toLatLng = (x,y) => map.unproject([x, H - y], Z0);
-  const toPixel  = (ll)    => {
-    const p = map.project(ll, Z0);
+  const toLatLng = (x,y) => map.unproject([x, H - y], 0);
+  const toPixel  = (ll)  => {
+    const p = map.project(ll, 0);
     return { x: Math.round(p.x), y: Math.round(H - p.y) };
   };
 
-  // spots.json を取得
+  // spots.json 読み込み
   let spots = [];
   try {
     const res = await fetch(DATA_URL, { cache:'no-store' });
     spots = await res.json();
   } catch(e) {
-    console.warn('spots.json を読み込めませんでした。空配列で続行します。', e);
-    spots = [];
+    console.warn('JSON読込エラー（初回は無視してください）', e);
   }
 
-  // ピン描画
+  // ▼ ピンを地図に刺す処理
   const icon = L.icon({
     iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
     shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
     iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34]
   });
 
-  spots.forEach(s=>{
-    // audio は配列で [mp3,wav] などの順にフォールバック
-    const audioSources = (s.audio || []).map(src=>{
-      const type = src.endsWith('.mp3') ? 'audio/mpeg'
-                 : src.endsWith('.wav') ? 'audio/wav'
-                 : '';
-      return type ? `<source src="${src}" type="${type}">` : '';
-    }).join('');
+  spots.forEach((spot, index) => {
+    // プレイリストの生成
+    const tracks = spot.playlist || [];
+    // 最初の曲（なければ空）
+    const firstTrack = tracks[0] ? abs(tracks[0].file) : '';
+    
+    // HTML組み立て
+    const div = document.createElement('div');
+    div.className = 'popup';
+    div.innerHTML = `
+      ${spot.photo ? `<img src="${abs(spot.photo)}">` : ''}
+      <div class="meta">${spot.title || 'No Title'}</div>
+      <div class="desc">${spot.desc || ''}</div>
+      <div class="player-box">
+        <audio controls id="audio-${index}" src="${firstTrack}"></audio>
+        <div class="track-list" id="list-${index}">
+          </div>
+      </div>
+    `;
 
-    const html = `
-      <div class="popup">
-        ${s.photo ? `<img src="${s.photo}" alt="${s.title||''}">` : ``}
-        <div class="meta">${s.title||''} ${s.recorder?`｜ REC: ${s.recorder}`:''} ${s.date?`｜ ${s.date}`:''}</div>
-        <div>${s.desc||''}</div>
-        ${audioSources ? `
-          <audio controls preload="metadata" playsinline>${audioSources}
-            お使いのブラウザは音声再生に対応していません。
-          </audio>
-          <div class="alt">再生できないときは <a href="${s.audio?.[0]||s.audio?.[1]||'#'}" target="_blank" rel="noopener">音源を直接開く</a></div>
-        ` : ``}
-      </div>`;
+    // トラックボタンを動的に追加
+    const listContainer = div.querySelector(`#list-${index}`);
+    const audioEl = div.querySelector(`#audio-${index}`);
 
-    L.marker(toLatLng(s.x, s.y),{icon}).addTo(map).bindPopup(html);
+    tracks.forEach((track, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'track-btn';
+      btn.innerHTML = `▶ ${track.name}`;
+      btn.onclick = () => {
+        // 曲を切り替え
+        audioEl.src = abs(track.file);
+        audioEl.play();
+        // 色を変える
+        div.querySelectorAll('.track-btn').forEach(b => b.classList.remove('playing'));
+        btn.classList.add('playing');
+      };
+      listContainer.appendChild(btn);
+    });
+
+    L.marker(toLatLng(spot.x, spot.y), {icon}).addTo(map).bindPopup(div);
   });
 
-  // クリックで座標表示＋JSONテンプレをクリップボードにコピー
+  // ▼ 座標取得とコピー機能
   let lastXY = {x:null, y:null};
-  map.on('click', e=>{
+  map.on('click', e => {
     lastXY = toPixel(e.latlng);
     document.getElementById('px').textContent = lastXY.x;
     document.getElementById('py').textContent = lastXY.y;
   });
 
-  document.getElementById('copyBtn').onclick = async ()=>{
-    if(lastXY.x==null){ alert('まず地図をクリックして座標を取得してください。'); return; }
+  document.getElementById('copyBtn').onclick = async () => {
+    if(lastXY.x == null){ alert('地図上のピンを置きたい場所をクリックしてください'); return; }
+    
+    // コピーするテンプレート（プレイリスト対応版）
     const template = {
-      "title": "タイトルを入力",
+      "title": "エリア名を入力",
       "x": lastXY.x,
       "y": lastXY.y,
-      "recorder": "お名前",
-      "date": "2025-10-12",
-      "photo": "img/your_photo.jpg",
-      "audio": ["audio/your_audio.mp3", "audio/your_audio.wav"],
-      "desc": "メモ"
+      "desc": "説明文",
+      "photo": "gazou.jpg",
+      "playlist": [
+        { "name": "録音1のタイトル", "file": "sound1.mp3" },
+        { "name": "録音2のタイトル", "file": "sound2.mp3" }
+      ]
     };
-    try{
-      await navigator.clipboard.writeText(JSON.stringify(template, null, 2));
-      alert('JSONテンプレをコピーしました。spots.json に貼り付けてください。');
-    }catch(_){
-      // クリップボード不可の環境向けにダイアログ表示
-      prompt('下の内容をコピーして spots.json に追記してください：', JSON.stringify(template, null, 2));
+
+    const text = JSON.stringify(template, null, 2) + ","; // 後ろにカンマつけておく
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('コピーしました！\nspots.json を開き、[ ] の中に貼り付けてください。');
+    } catch(e) {
+      prompt('コピーして spots.json に貼ってください:', text);
     }
   };
+
 })();
 </script>
 </body>
