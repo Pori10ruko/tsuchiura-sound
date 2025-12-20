@@ -23,3 +23,20 @@
     ]
   }
 ]
+{
+  "title": "riverside",
+  "x": 558,
+  "y": 2002,
+  "desc": "river",
+  "photo": "sample.jpg",
+  "playlist": [
+    {
+      "name": "水１",
+      "file": "20251012_122800.mp3"
+    },
+    {
+      "name": "水2",
+      "file": "高野20251012_105124水.mp3"
+    }
+  ]
+},
