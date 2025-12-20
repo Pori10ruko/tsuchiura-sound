@@ -1,27 +1,11 @@
 [
-  {
-    "title": "riverside",
-    "x": 558,
-    "y": 2002,
-    "desc": "river",
-    "photo": "sample.jpg",
-    "playlist": [
-      {
-        "name": "水１",
-        "file": "audio/高野20251012_111205水.mp3"
-      },
-      {
-        "name": "水2",
-        "file": "audio/高野20251012_105124水.mp3"
-      }
-    ]
-  },
+
   {
     "title": "風車",
     "x": 540,
     "y": 1978,
     "desc": "風車の音",
-    "photo": "husha.jpg",
+    "photo": "photo/husha.jpg",
     "playlist": [
       {
         "name": "高野:風車下",
