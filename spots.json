@@ -1,12 +1,25 @@
 [
   {
-    "title": "サンプル：川の音",
-    "x": 598,
-    "y": 1764,
-    "recorder": "Your Name",
-    "date": "2025-10-12",
+    "title": "霞ヶ浦総合公園エリア",
+    "x": 9660,
+    "y": 5020,
+    "desc": "この周辺で集めた音源集です。",
     "photo": "sample.jpg",
-    "audio": ["sample.mp3", "sample.wav"],
-    "desc": "霞ヶ浦総合公園ちかくの川沿いで録音。"
+    "playlist": [
+      { "name": "川のせせらぎ", "file": "river.mp3" },
+      { "name": "風車の音", "file": "wind.mp3" },
+      { "name": "子供たちの声", "file": "kids.mp3" }
+    ]
+  },
+  {
+    "title": "土浦駅周辺",
+    "x": 5000,
+    "y": 3000,
+    "desc": "駅前の音です。",
+    "photo": "station.jpg",
+    "playlist": [
+      { "name": "電車の発車音", "file": "train.mp3" },
+      { "name": "アナウンス", "file": "announce.mp3" }
+    ]
   }
 ]
