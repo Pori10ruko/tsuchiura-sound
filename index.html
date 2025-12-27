@@ -9,18 +9,6 @@
   html,body{height:100%;margin:0;background:#000;color:#e8e0c9;}
   #map{width:100vw;height:100vh;}
   .leaflet-container{background:#000;}
-  
-  /* 右上の座標表示＆コピーボタン */
-  .hud{
-    position:fixed;right:12px;top:12px;z-index:600;
-    background:#111a;color:#ffd86b;border:1px solid #ffd86b55;
-    font:12px/1.4 system-ui;padding:8px 10px;border-radius:10px;backdrop-filter:blur(4px);
-    max-width: 200px;
-  }
-  .hud button{
-    margin-top:6px;width:100%;border:1px solid #ffd86b55;border-radius:4px;
-    background:#333;color:#ffd86b;padding:4px;cursor:pointer;
-  }
 
   /* ポップアップのデザイン */
   .popup{width:min(320px,80vw);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif;color:#111;}
@@ -44,13 +32,6 @@
 
 <div id="map"></div>
 
-<div class="hud">
-  <div>img: <span id="sz">loading...</span></div>
-  <div>x:<span id="px">—</span> / y:<span id="py">—</span></div>
-  <button id="copyBtn">📋 ピン追加用コードをコピー</button>
-  <div style="font-size:10px;color:#ccc;margin-top:4px;">※地図をクリックしてから押す</div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (async () => {
@@ -70,7 +51,6 @@
     i.src = IMG_URL;
   });
   const W = img.naturalWidth, H = img.naturalHeight;
-  document.getElementById('sz').textContent = `${W}×${H}px`;
 
   // 座標系設定（左上原点、Y軸反転対応）
   const bounds = [[0,0],[H,W]];
@@ -143,38 +123,8 @@
     L.marker(toLatLng(spot.x, spot.y), {icon}).addTo(map).bindPopup(div);
   });
 
-  // ▼ 座標取得とコピー機能
-  let lastXY = {x:null, y:null};
-  map.on('click', e => {
-    lastXY = toPixel(e.latlng);
-    document.getElementById('px').textContent = lastXY.x;
-    document.getElementById('py').textContent = lastXY.y;
-  });
-
-  document.getElementById('copyBtn').onclick = async () => {
-    if(lastXY.x == null){ alert('地図上のピンを置きたい場所をクリックしてください'); return; }
-    
-    // コピーするテンプレート（プレイリスト対応版）
-    const template = {
-      "title": "エリア名を入力",
-      "x": lastXY.x,
-      "y": lastXY.y,
-      "desc": "説明文",
-      "photo": "gazou.jpg",
-      "playlist": [
-        { "name": "録音1のタイトル", "file": "sound1.mp3" },
-        { "name": "録音2のタイトル", "file": "sound2.mp3" }
-      ]
-    };
-
-    const text = JSON.stringify(template, null, 2) + ","; // 後ろにカンマつけておく
-    try {
-      await navigator.clipboard.writeText(text);
-      alert('コピーしました！\nspots.json を開き、[ ] の中に貼り付けてください。');
-    } catch(e) {
-      prompt('コピーして spots.json に貼ってください:', text);
-    }
-  };
+  // ▼ 座標取得（必要ならここで利用）
+  // map.on('click', e => console.log(toPixel(e.latlng)));
 
 })();
 </script>
