@@ -101,10 +101,12 @@
 
   // 座標系設定（左上原点、Y軸反転対応）
   const bounds = [[0,0],[H,W]];
+  const imageBounds = L.latLngBounds(bounds);
   const map = L.map('map',{ crs:L.CRS.Simple, minZoom:-4, maxZoom:4, zoomControl:true });
   L.imageOverlay(IMG_URL, bounds).addTo(map);
-  map.fitBounds(bounds, { padding:[0,0] });
-  map.setMaxBounds(bounds);
+  map.fitBounds(imageBounds, { padding:[0,0] });
+  // ポップアップが画面外に見切れないよう、少しだけ外側へパンできる余白を持たせる
+  map.setMaxBounds(imageBounds.pad(0.35));
 
   const toLatLng = (x,y) => map.unproject([x, H - y], 0);
   const toPixel  = (ll)  => {
@@ -177,7 +179,10 @@
       imgEl.src = abs(spot.photo);
       imgEl.onload = () => {
         const popup = marker.getPopup();
-        if (popup && map.hasLayer(popup)) popup.update();
+        if (popup) {
+          popup.update();
+          if (marker.isPopupOpen()) marker.openPopup();
+        }
       };
       imgEl.onerror = () => {
         const fallback = document.createElement('div');
@@ -185,12 +190,19 @@
         fallback.textContent = `画像を読み込めませんでした: ${spot.photo}`;
         slot.replaceChildren(fallback);
         const popup = marker.getPopup();
-        if (popup && map.hasLayer(popup)) popup.update();
+        if (popup) {
+          popup.update();
+          if (marker.isPopupOpen()) marker.openPopup();
+        }
       };
       slot.appendChild(imgEl);
     }
 
-    marker.bindPopup(div);
+    marker.bindPopup(div, {
+      maxWidth: 360,
+      keepInView: true,
+      autoPanPadding: [16, 24],
+    });
   });
 
   // ▼ 座標取得（必要ならここで利用）
