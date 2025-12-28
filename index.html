@@ -83,6 +83,8 @@
     background-position:center;
     border:2px solid var(--accent);
     box-shadow:0 10px 22px rgba(0,0,0,.55);
+    transform:scale(1);
+    transform-origin:center center;
   }
   .photo-marker--fallback{
     display:flex;
@@ -199,8 +201,8 @@
     const size = 34;
     const hasPhoto = Boolean(spot.photo);
     const html = hasPhoto
-      ? `<div class="photo-marker" style="background-image:url('${abs(spot.photo)}')"></div>`
-      : `<div class="photo-marker photo-marker--fallback">♪</div>`;
+      ? `<div class="photo-marker js-scalable-marker" style="background-image:url('${abs(spot.photo)}')"></div>`
+      : `<div class="photo-marker js-scalable-marker photo-marker--fallback">♪</div>`;
     return L.divIcon({
       className: 'photo-div-icon',
       html,
@@ -209,6 +211,24 @@
       popupAnchor: [0, -size/2],
     });
   };
+
+  // ズームに合わせて丸ピンも拡大縮小（Leafletの位置transformを壊さないよう内側要素だけscale）
+  const baseZoom = map.getZoom();
+  const scalableMarkers = new Set();
+  const getScale = () => {
+    const dz = map.getZoom() - baseZoom;
+    const raw = Math.pow(1.25, dz);
+    return Math.max(0.6, Math.min(2.4, raw));
+  };
+  const updateMarkerScales = () => {
+    const scale = getScale();
+    for (const marker of scalableMarkers) {
+      const el = marker.getElement?.();
+      const inner = el ? el.querySelector('.js-scalable-marker') : null;
+      if (inner) inner.style.transform = `scale(${scale})`;
+    }
+  };
+  map.on('zoom', updateMarkerScales);
 
   spots.forEach((spot, index) => {
     // プレイリストの生成
@@ -296,6 +316,8 @@
     });
 
     const marker = L.marker(toLatLng(spot.x, spot.y), {icon: makePhotoIcon(spot)}).addTo(map);
+    scalableMarkers.add(marker);
+    marker.on('add', updateMarkerScales);
 
     // 画像は遅延ロードされるため、読み込み完了後にpopupサイズを更新する
     if (spot.photo) {
