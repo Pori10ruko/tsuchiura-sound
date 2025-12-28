@@ -138,7 +138,7 @@
     const div = document.createElement('div');
     div.className = 'popup';
     div.innerHTML = `
-      ${spot.photo ? `<img src="${abs(spot.photo)}">` : ''}
+      <div data-photo-slot></div>
       <div class="meta">${spot.title || 'No Title'}</div>
       <div class="desc">${spot.desc || ''}</div>
       <div class="player-box">
@@ -167,7 +167,30 @@
       listContainer.appendChild(btn);
     });
 
-    L.marker(toLatLng(spot.x, spot.y), {icon}).addTo(map).bindPopup(div);
+    const marker = L.marker(toLatLng(spot.x, spot.y), {icon}).addTo(map);
+
+    // 画像は遅延ロードされるため、読み込み完了後にpopupサイズを更新する
+    if (spot.photo) {
+      const slot = div.querySelector('[data-photo-slot]');
+      const imgEl = document.createElement('img');
+      imgEl.alt = spot.title || '';
+      imgEl.src = abs(spot.photo);
+      imgEl.onload = () => {
+        const popup = marker.getPopup();
+        if (popup && map.hasLayer(popup)) popup.update();
+      };
+      imgEl.onerror = () => {
+        const fallback = document.createElement('div');
+        fallback.className = 'desc';
+        fallback.textContent = `画像を読み込めませんでした: ${spot.photo}`;
+        slot.replaceChildren(fallback);
+        const popup = marker.getPopup();
+        if (popup && map.hasLayer(popup)) popup.update();
+      };
+      slot.appendChild(imgEl);
+    }
+
+    marker.bindPopup(div);
   });
 
   // ▼ 座標取得（必要ならここで利用）
