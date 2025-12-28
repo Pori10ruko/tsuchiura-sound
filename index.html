@@ -6,26 +6,73 @@
 <title>Tsuchiura Sound Archive</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  html,body{height:100%;margin:0;background:#000;color:#e8e0c9;}
+  :root{
+    --bg:#000;
+    --fg:#e8e0c9;
+    --accent:#ffd86b;
+    --accentBorder:rgba(255,216,107,.35);
+    --panel:rgba(12,12,12,.92);
+    --panel2:rgba(0,0,0,.35);
+  }
+
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);}
   #map{width:100vw;height:100vh;}
-  .leaflet-container{background:#000;}
+  .leaflet-container{background:var(--bg);}
+
+  /* Leaflet popup theme (dark + gold) */
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-tip{
+    background:var(--panel);
+    color:var(--fg);
+    border:1px solid var(--accentBorder);
+    box-shadow:0 18px 45px rgba(0,0,0,.65);
+  }
+  .leaflet-popup-close-button{
+    color:var(--accent) !important;
+  }
+  .leaflet-popup-close-button:hover{
+    color:var(--fg) !important;
+  }
 
   /* ポップアップのデザイン */
-  .popup{width:min(320px,80vw);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif;color:#111;}
-  .popup img{width:100%;height:auto;border-radius:6px;margin-bottom:8px;object-fit:cover;}
-  .popup .meta{font-size:12px;color:#555;margin-bottom:4px;font-weight:bold;}
-  .popup .desc{font-size:13px;margin-bottom:8px;}
+  .popup{width:min(360px,86vw);font:14px/1.6 system-ui,"Noto Sans JP",sans-serif;color:var(--fg);}
+  .popup img{
+    width:100%;
+    height:auto;
+    max-height:30vh;
+    border-radius:10px;
+    margin-bottom:10px;
+    object-fit:contain;
+    background:var(--panel2);
+    border:1px solid var(--accentBorder);
+  }
+  .popup .meta{font-size:12px;color:var(--accent);margin-bottom:6px;font-weight:800;letter-spacing:.03em;}
+  .popup .desc{font-size:13px;margin-bottom:10px;color:rgba(232,224,201,.92);}
   
   /* プレイヤー部分 */
-  .player-box {background:#f0f0f0; padding:8px; border-radius:6px;}
-  .player-box audio {width:100%; margin-bottom:8px;}
-  .track-list {max-height:150px; overflow-y:auto; border-top:1px solid #ccc;}
+  .player-box {background:var(--panel2); padding:10px; border-radius:10px; border:1px solid rgba(255,216,107,.22);}
+  .player-box audio {width:100%; margin-bottom:10px;}
+  .track-list {max-height:160px; overflow-y:auto; border-top:1px solid rgba(255,216,107,.18);}
   .track-btn {
-    display:block; width:100%; text-align:left; padding:6px; border:none; border-bottom:1px solid #ddd;
-    background:#fff; cursor:pointer; font-size:13px;
+    display:block;
+    width:100%;
+    text-align:left;
+    padding:8px 8px;
+    border:none;
+    border-bottom:1px solid rgba(255,216,107,.15);
+    background:transparent;
+    cursor:pointer;
+    font-size:13px;
+    color:var(--fg);
   }
-  .track-btn:hover {background:#eef;}
-  .track-btn.playing {background:#ffd86b; color:#000; font-weight:bold;}
+  .track-btn:hover {background:rgba(255,216,107,.12);}
+  .track-btn.playing {background:var(--accent); color:#000; font-weight:900;}
+
+  @media (max-width: 480px){
+    .popup{width:92vw;}
+    .popup img{max-height:26vh;}
+    .track-list{max-height:22vh;}
+  }
 </style>
 </head>
 <body>
